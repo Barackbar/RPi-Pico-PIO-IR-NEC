@@ -7,11 +7,12 @@
 
 .program ir_nec
 
-; We're running at 4*38222Hz = 152888
-; We're using a 25% carrier duty cycle
-.wrap_target
-; Block for data to be available on the TxFifo
-; TODO: auto pull instead?
+    ; We're running at 4*38222Hz = 152888Hz
+    ; Each cycle ~= 6us
+    ; We're using a 25% carrier duty cycle
+    .wrap_target
+    ; Block for data to be available on the TxFifo
+    ; TODO: auto pull instead?
     pull
     out y, 32
     pull
@@ -23,34 +24,52 @@ header_high:
 header_low:
     jmp x--, header_low [3]
 
-; Start sending data, 32 bits per message
+    ; Need a delay between pins high of:
+    ;   688 cycles ~= 4500us*152888Hz
+    ;   Breakdown:
+    ;     3 from end of header_high
+    ;     680 from header_low
+    ;     5 after header_low
+    ; We set this delay as a fifo pushed value of 679
+    ; in order to run the 4 cycle loop 680 times
+
+    ; Start sending data, 32 bits per message
     pull
-    set x, 31
+    set x, 31 [2]
 data_loop:
-; 21.5 loops ~= 562.5us*152888hz/4 cycles/loop, close enough
+    ; 86 cycles ~= 562.5us*152888hz
+    ; Setting to 22 loops here because the last loop is more
+    ; like 1/4 of a loop, which is close enough
     set y, 21
 pulse_loop:
     set pins, 1
     set pins, 0 [1]
     jmp y--, pulse_loop
 
+    ; For a 1, need:
+    ;   86 cycles  ~= 562.5us*152888Hzz between pins set high
+    ;   Breakdown:
+    ;     14 before delay_loop
+    ;     70 from delay_loop
+    ;     2  after delay_loop
+    ; For a 0 need:
+    ;   258 cycles ~= 1687.5us*152888Hz between pins set high
+    ;   Breakdown:
+    ;     6   before delay_loop
+    ;     250 from delay_loop
+    ;     2   after delay_loop
+
     out y, 1
     jmp !y, zero_cond
-; 10.75 loops ~= 562.5us*152888hz/8 cycles/loop
-; Do 0.75 loops of delay with 6 extra cycles, 2 above and 4 below
-    set y, 10 [2]
+    set y, 6 [7]
     jmp delay_loop
 zero_cond:
-; 32.25 loops ~= 1687.5us*152888hz/8 cycles/loop
-; Remove 1.25 loops with 10 extra cycles, 2 above and 8 below
-; TODO: delays are a little long, ~620us and ~1750us vs ~562 and ~1690, respectively
-; ~13us is coming from the end and beginning of data_loop,
-; but the other ~50us is still unaccounted for.
-    set y, 31 [7]
-delay_loop: ; 8 cycles/loop
-    jmp y--, delay_loop [7]
+    set y, 24
+delay_loop: ; 10 cycles/loop
+    jmp y--, delay_loop [9]
     jmp x--, data_loop
 
+    ; Ending pulse
     set y, 21
 end_loop: ; 4 cycles/loop
     set pins, 1

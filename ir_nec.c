@@ -23,8 +23,8 @@ int main() {
   float div = (float)clock_get_hz(clk_sys) / (float)(4 * 38222);
   // Calculate the 9ms header pulse
   uint32_t header_pulse_loops = 0.009*38222;
-  // Calculate the 4.5ms header delay
-  uint32_t header_delay_loops = 0.0045*38222;
+  // Calculate the 4.5ms header delay minus 1 because of how loops work
+  uint32_t header_delay_loops = 0.0045*38222 - 1;
 
   ir_nec_program_init(pio, sm, offset, 22, div);
 
