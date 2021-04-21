@@ -78,6 +78,9 @@ end_loop: ; 4 cycles/loop
 .wrap
 
 % c-sdk {
+#include "pico/stdlib.h"
+// TODO: ensure all necessary includes are here
+
 static inline void ir_nec_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
 {
     pio_sm_config c = ir_nec_program_get_default_config(offset);
@@ -98,5 +101,16 @@ static inline void ir_nec_program_init(PIO pio, uint sm, uint offset, uint pin, 
     pio_sm_init(pio, sm, offset, &c);
     // Set the state machine running
     pio_sm_set_enabled(pio, sm, true);
+}
+
+void ir_nec_send(PIO pio, uint sm, uint32_t data)
+{
+    // Don't subtract 1 because last loop is more like 1/4 loop
+    uint32_t header_pulse_loops = 344; // 0.009s*38222Hz
+    // Subtract 1 because of the extra stuff after the loop
+    uint32_t header_delay_loops = 171; // 0.0045s*38222Hz - 1
+    pio_sm_put_blocking(pio, sm, header_pulse_loops);
+    pio_sm_put_blocking(pio, sm, header_delay_loops);
+    pio_sm_put_blocking(pio, sm, data);
 }
 %}
