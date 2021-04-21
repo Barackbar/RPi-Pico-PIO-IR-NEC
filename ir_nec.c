@@ -1,9 +1,9 @@
-/**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * SPDX-License-Identifier: BSD-3-Clause
+ * Author: John David Sprunger
+ * Date: 4/20/2021
  */
-
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
