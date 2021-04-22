@@ -10,7 +10,7 @@
     ; We're running at 4*38222Hz = 152888Hz
     ; Each cycle ~= 6us
     ; We're using a 25% carrier duty cycle
-    .wrap_target
+.wrap_target
     ; Block for data to be available on the TxFifo
     ; TODO: auto pull instead?
     pull
