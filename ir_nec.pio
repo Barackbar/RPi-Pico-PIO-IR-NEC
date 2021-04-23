@@ -5,39 +5,45 @@
 ; Date: 4/20/2021
 ;
 
-.program ir_nec
+.program ir_nec_tx
 
-    ; We're running at 4*38222Hz = 152888Hz
-    ; Each cycle ~= 6us
+    ; We're running at 4*38kHz = 152kHz
+    ; Each cycle ~= 6.6us
     ; We're using a 25% carrier duty cycle
     .wrap_target
     ; Block for data to be available on the TxFifo
-    ; TODO: auto pull instead?
     pull
     out y, 32
     pull
     out x, 32
+
+    ; Need a modulated high signal of:
+    ;   1368 cycles ~= 9000us*152kHz
+    ;   We set this as a TxFifo pushed value of 1368/4 = 342
+    ;   because we want it to run 343 times because
+    ;   the last loop is more like 1/4 of a loop.
+
 header_high:
     set pins, 1
     set pins, 0 [1]
     jmp y--, header_high
 header_low:
-    jmp x--, header_low [3]
+    jmp x--, header_low [4]
 
     ; Need a delay between pins high of:
-    ;   688 cycles ~= 4500us*152888Hz
+    ;   684 cycles ~= 4500us*152kHz
     ;   Breakdown:
     ;     3 from end of header_high
-    ;     680 from header_low
-    ;     5 after header_low
-    ; We set this delay as a fifo pushed value of 679
-    ; in order to run the 4 cycle loop 680 times
+    ;     670 from header_low
+    ;     11 after header_low
+    ; We set this delay as a TxFifo pushed value of 670/5 - 1 = 133
+    ; in order to run the 5 cycle loop 134 times
 
     ; Start sending data, 32 bits per message
     pull
-    set x, 31 [2]
+    set x, 31 [8]
 data_loop:
-    ; 86 cycles ~= 562.5us*152888hz
+    ; 85.5 cycles ~= 562.5us*152kHz
     ; Setting to 22 loops here because the last loop is more
     ; like 1/4 of a loop, which is close enough
     set y, 21
@@ -47,16 +53,20 @@ pulse_loop:
     jmp y--, pulse_loop
 
     ; For a 1, need:
-    ;   86 cycles  ~= 562.5us*152888Hzz between pins set high
+    ;   85.5 cycles  ~= 562.5us*152kHz between pins set high
+    ;   Doing 86 cycles because it's close enough
     ;   Breakdown:
-    ;     14 before delay_loop
+    ;     3 from end of pulse_loop
+    ;     11 before delay_loop
     ;     70 from delay_loop
     ;     2  after delay_loop
     ; For a 0 need:
-    ;   258 cycles ~= 1687.5us*152888Hz between pins set high
+    ;   256.5 cycles ~= 1687.5us*152kHz between pins set high
+    ;   Doing 257 cycles because it's close enough
     ;   Breakdown:
-    ;     6   before delay_loop
-    ;     250 from delay_loop
+    ;     3 from end of pulse_loop
+    ;     12   before delay_loop
+    ;     240 from delay_loop
     ;     2   after delay_loop
 
     out y, 1
@@ -64,12 +74,14 @@ pulse_loop:
     set y, 6 [7]
     jmp delay_loop
 zero_cond:
-    set y, 24
+    set y, 23 [6]
 delay_loop: ; 10 cycles/loop
     jmp y--, delay_loop [9]
     jmp x--, data_loop
 
     ; Ending pulse
+    ; 85.5 cycles ~= 562.5us*152kHz
+    ; 22 loops as before
     set y, 21
 end_loop: ; 4 cycles/loop
     set pins, 1
@@ -81,9 +93,9 @@ end_loop: ; 4 cycles/loop
 #include "pico/stdlib.h"
 // TODO: ensure all necessary includes are here
 
-static inline void ir_nec_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
+static inline void ir_nec_tx_program_init(PIO pio, uint sm, uint offset, uint pin, float div)
 {
-    pio_sm_config c = ir_nec_program_get_default_config(offset);
+    pio_sm_config c = ir_nec_tx_program_get_default_config(offset);
 
     // Map the state machine's SET pin group to one pin, namely the `pin`
     // parameter to this function.
@@ -106,9 +118,9 @@ static inline void ir_nec_program_init(PIO pio, uint sm, uint offset, uint pin, 
 void ir_nec_send(PIO pio, uint sm, uint32_t data)
 {
     // Don't subtract 1 because last loop is more like 1/4 loop
-    uint32_t header_pulse_loops = 344; // 0.009s*38222Hz
+    uint32_t header_pulse_loops = 342; // See note above header_high
     // Subtract 1 because of the extra stuff after the loop
-    uint32_t header_delay_loops = 171; // 0.0045s*38222Hz - 1
+    uint32_t header_delay_loops = 133; // See note below header_low
     pio_sm_put_blocking(pio, sm, header_pulse_loops);
     pio_sm_put_blocking(pio, sm, header_delay_loops);
     pio_sm_put_blocking(pio, sm, data);
